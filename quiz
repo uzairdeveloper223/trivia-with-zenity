@@ -1,0 +1,202 @@
+#!/bin/bash
+
+# Check if zenity is installed
+if ! command -v zenity &> /dev/null; then
+    echo "Zenity is not installed. Installing now..."
+    apt-get update && apt-get install zenity -y
+fi
+
+# Define the data file path
+DATA_DIR="./Quiz-data"
+DATA_FILE="$DATA_DIR/data.txt"
+
+# Initialize or load data
+if [ ! -d "$DATA_DIR" ]; then
+    mkdir -p "$DATA_DIR"
+fi
+
+if [ -f "$DATA_FILE" ]; then
+    source "$DATA_FILE"
+    if zenity --question --title="Quiz Game" --text="Would you like to continue your previous game?" --width=300 --height=100; then
+        zenity --info --text="Resuming your quiz..." --width=300 --height=100 --timeout=2
+    else
+        score=0
+        current_question=0
+        correct_answers=0
+        wrong_answers=0
+        > "$DATA_FILE"  # Clear the file
+    fi
+else
+    score=0
+    current_question=0
+    correct_answers=0
+    wrong_answers=0
+fi
+
+# Function to save progress
+save_progress() {
+    echo "score=$score" > "$DATA_FILE"
+    echo "current_question=$current_question" >> "$DATA_FILE"
+    echo "correct_answers=$correct_answers" >> "$DATA_FILE"
+    echo "wrong_answers=$wrong_answers" >> "$DATA_FILE"
+    echo "progress saved"
+}
+
+# Define a function to ask a question
+ask_question() {
+    QUESTION="$1"
+    OPTION1="$2"
+    OPTION2="$3"
+    OPTION3="$4"
+    OPTION4="$5"
+    CORRECT_OPTION="$6"
+
+    ANSWER=$(zenity --list --title="Quiz Game" --text="$QUESTION" --radiolist \
+        --column="Select" --column="Options" \
+        FALSE "$OPTION1" \
+        FALSE "$OPTION2" \
+        FALSE "$OPTION3" \
+        FALSE "$OPTION4" \
+        --width=400 --height=300)
+
+    if [ "$ANSWER" == "$CORRECT_OPTION" ]; then
+        zenity --info --text="Correct! 😃" --timeout=2 --width=200 --height=100
+        ((correct_answers++))
+    else
+        zenity --error --text="Wrong! The correct answer was: $CORRECT_OPTION" --timeout=2 --width=200 --height=100
+        ((wrong_answers++))
+    fi
+    ((current_question++))
+}
+
+# Welcome message
+zenity --info --text="🎉 Welcome to the Trivia Quiz Game! 🎉" --width=300 --height=100 --timeout=3
+zenity --info --text="Your progress will be saved after every question , press CTRL+C to exit without data loss , press 'ok' to continue" --width=300 --height=100
+# Quiz questions
+if [ "$current_question" -eq 0 ]; then
+    ask_question "Which planet is known as the Red Planet?" "Earth" "Mars" "Jupiter" "Venus" "Mars"
+fi
+save_progress
+if [ "$current_question" -eq 1 ]; then
+    ask_question "What is the capital of France?" "Berlin" "London" "Madrid" "Paris" "Paris"
+fi
+save_progress
+if [ "$current_question" -eq 2 ]; then
+    ask_question "Which element has the chemical symbol 'O'?" "Oxygen" "Gold" "Osmium" "Oganesson" "Oxygen"
+fi
+save_progress
+if [ "$current_question" -eq 3 ]; then
+    ask_question "Who wrote the play 'Romeo and Juliet'?" "Mark Twain" "William Shakespeare" "Charles Dickens" "Jane Austen" "William Shakespeare"
+fi
+save_progress
+if [ "$current_question" -eq 4 ]; then
+    ask_question "Which animal is known as the King of the Jungle?" "Elephant" "Tiger" "Lion" "Bear" "Lion"
+fi
+save_progress
+if [ "$current_question" -eq 5 ]; then
+    ask_question "What is the largest ocean on Earth?" "Atlantic" "Indian" "Arctic" "Pacific" "Pacific"
+fi
+save_progress
+if [ "$current_question" -eq 6 ]; then
+    ask_question "In which year did the Titanic sink?" "1912" "1913" "1914" "1915" "1912"
+fi
+save_progress
+if [ "$current_question" -eq 7 ]; then
+    ask_question "Which planet is closest to the Sun?" "Mercury" "Venus" "Earth" "Mars" "Mercury"
+fi
+save_progress
+if [ "$current_question" -eq 8 ]; then
+    ask_question "What is the largest mammal in the world?" "Elephant" "Blue Whale" "Giraffe" "Shark" "Blue Whale"
+fi
+save_progress
+if [ "$current_question" -eq 9 ]; then
+    ask_question "Which country is home to the kangaroo?" "South Africa" "India" "Australia" "Brazil" "Australia"
+fi
+save_progress
+if [ "$current_question" -eq 10 ]; then
+    ask_question "Which is the smallest country in the world by area?" "Monaco" "Vatican City" "San Marino" "Liechtenstein" "Vatican City"
+fi
+save_progress
+if [ "$current_question" -eq 11 ]; then
+    ask_question "Which planet is known as the Earth's twin?" "Mars" "Venus" "Jupiter" "Saturn" "Venus"
+fi
+save_progress
+if [ "$current_question" -eq 12 ]; then
+    ask_question "What is the chemical symbol for gold?" "Ag" "Au" "Gd" "Pb" "Au"
+fi
+save_progress
+if [ "$current_question" -eq 13 ]; then
+    ask_question "Who painted the Mona Lisa?" "Vincent van Gogh" "Pablo Picasso" "Leonardo da Vinci" "Claude Monet" "Leonardo da Vinci"
+fi
+save_progress
+if [ "$current_question" -eq 14 ]; then
+    ask_question "Which country won the FIFA World Cup in 2018?" "Germany" "Brazil" "Argentina" "France" "France"
+fi
+save_progress
+if [ "$current_question" -eq 15 ]; then
+    ask_question "What is the hardest natural substance on Earth?" "Iron" "Diamond" "Gold" "Titanium" "Diamond"
+fi
+save_progress
+if [ "$current_question" -eq 16 ]; then
+    ask_question "In which year did World War II end?" "1942" "1943" "1945" "1946" "1945"
+fi
+save_progress
+if [ "$current_question" -eq 17 ]; then
+    ask_question "What is the most abundant gas in Earth's atmosphere?" "Oxygen" "Nitrogen" "Carbon Dioxide" "Hydrogen" "Nitrogen"
+fi
+save_progress
+if [ "$current_question" -eq 18 ]; then
+    ask_question "Which element is known as the 'King of Chemicals'?" "Hydrochloric Acid" "Sulfuric Acid" "Nitric Acid" "Acetic Acid" "Sulfuric Acid"
+fi
+save_progress
+if [ "$current_question" -eq 19 ]; then
+    ask_question "What is the capital city of Australia?" "Sydney" "Melbourne" "Canberra" "Brisbane" "Canberra"
+fi
+save_progress
+if [ "$current_question" -eq 20 ]; then
+    ask_question "Which is the largest landlocked country in the world?" "Kazakhstan" "Mongolia" "Bolivia" "Chad" "Kazakhstan"
+fi
+save_progress
+if [ "$current_question" -eq 21 ]; then
+    ask_question "What is the powerhouse of the cell?" "Nucleus" "Mitochondria" "Ribosome" "Chloroplast" "Mitochondria"
+fi
+save_progress
+if [ "$current_question" -eq 22 ]; then
+    ask_question "Which language has the most native speakers in the world?" "English" "Mandarin Chinese" "Spanish" "Hindi" "Mandarin Chinese"
+fi
+save_progress
+if [ "$current_question" -eq 23 ]; then
+    ask_question "Who discovered penicillin?" "Marie Curie" "Alexander Fleming" "Louis Pasteur" "Robert Koch" "Alexander Fleming"
+fi
+save_progress
+if [ "$current_question" -eq 24 ]; then
+    ask_question "Which planet is known as the Morning Star or Evening Star?" "Mercury" "Venus" "Mars" "Saturn" "Venus"
+fi
+save_progress
+if [ "$current_question" -eq 25 ]; then
+    ask_question "Which river is the longest in the world?" "Amazon" "Nile" "Yangtze" "Mississippi" "Nile"
+fi
+save_progress
+# Option to exit and save progress
+if zenity --question --title="Quiz Game" --text="Do you want to exit the quiz and save your progress?" --width=300 --height=100; then
+    save_progress
+    zenity --info --text="Your progress has been saved. See you next time!" --width=300 --height=100 --timeout=2
+    exit 0
+fi
+
+# Final score
+zenity --info --text="Your final score is: $correct_answers correct and $wrong_answers wrong out of $current_question questions." --width=300 --height=100 --timeout=5
+
+# End message
+if [ "$correct_answers" -eq 10 ]; then
+    zenity --info --text="🏆 Perfect Score! You're a trivia master!" --width=300 --height=100 --timeout=3
+elif [ "$correct_answers" -ge 7 ]; then
+    zenity --info --text="👏 Great Job! You did well!" --width=300 --height=100 --timeout=3
+elif [ "$correct_answers" -ge 4 ]; then
+    zenity --info --text="😊 Not bad! Keep practicing!" --width=300 --height=100 --timeout=3
+else
+    zenity --info --text="😅 Better luck next time! Keep practicing!" --width=300 --height=100 --timeout=3
+fi
+
+# Clean up and reset data
+> "$DATA_FILE"
