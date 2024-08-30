@@ -1,6 +1,6 @@
 # Trivia with Zenity
 
-Welcome to **Trivia with Zenity**, an engaging and interactive quiz game that tests your knowledge across various topics. This script is designed to run on any linux with GUI dupport,Termux with Xfce using Zenity for GUI dialogs, making it a fun and visually appealing experience.
+Welcome to **Trivia with Zenity**, an engaging and interactive quiz game that tests your knowledge across various topics. This script is designed to run on any linux with GUI support,Termux with Xfce using Zenity for GUI dialogs, making it a fun and visually appealing experience.
 
 ## Features
 - A variety of questions on different topics, from geography to science.
