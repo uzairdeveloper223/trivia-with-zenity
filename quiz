@@ -9,7 +9,36 @@ fi
 # Define the data file path
 DATA_DIR="./Quiz-data"
 DATA_FILE="$DATA_DIR/data.txt"
+VERSION="1"
+LATEST_VERSION_URL="https://raw.githubusercontent.com/uzairdeveloper223/trivia-with-zenity/Master/version.txt"
+LATEST_VERSION=$(curl -s "$LATEST_VERSION_URL")
 
+
+# Welcome message
+zenity --info --text="🎉 Welcome to the Trivia Quiz Game! 🎉" --width=300 --height=100 --timeout=3
+zenity --info --text="The version of the Game is ${VERSION}" --width=300 --height=100
+# Debugging: print out the values
+echo "VERSION: $VERSION"
+echo "LATEST_VERSION: $LATEST_VERSION"
+
+# Check if VERSION and LATEST_VERSION are integers and not empty
+if [[ -z "$VERSION" || -z "$LATEST_VERSION" ]]; then
+    echo "Error: VERSION or LATEST_VERSION is not set."
+    exit 1
+fi
+
+if  [ "$VERSION" -lt "$LATEST_VERSION" ]; then
+    if zenity --question --title="Update Available" --text="You are on version $VERSION. A newer version $LATEST_VERSION is available. Do you want to update?" --width=300 --height=100; then
+        zenity --info --text="Updating the quiz..." --width=300 --height=100 --timeout=3
+        rm quiz
+        curl -o quiz https://raw.githubusercontent.com/uzairdeveloper223/trivia-with-zenity/Master/quiz
+        chmod +x *
+        zenity --info --text="Update complete! Enter 'bash quiz' to start the game." --width=300 --height=100 --timeout=3
+        exit 0
+    else
+        zenity --warning --text="You chose not to update. You may not receive new questions." --width=300 --height=100 --timeout=3
+    fi
+fi
 # Initialize or load data
 if [ ! -d "$DATA_DIR" ]; then
     mkdir -p "$DATA_DIR"
