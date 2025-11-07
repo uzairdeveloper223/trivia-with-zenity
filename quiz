@@ -1,231 +1,459 @@
 #!/bin/bash
 
-# Check if zenity is installed
-if ! command -v zenity &> /dev/null; then
-    echo "Zenity is not installed. Installing now..."
-    apt-get update && apt-get install zenity -y
-fi
+#=============================================================================
+# Trivia Quiz Game - CLI/GUI Hybrid
+# Author: UzairDeveloper223
+# Version: 2.0
+#=============================================================================
 
-# Define the data file path
-DATA_DIR="./Quiz-data"
-DATA_FILE="$DATA_DIR/data.txt"
-VERSION="1"
-LATEST_VERSION_URL="https://raw.githubusercontent.com/uzairdeveloper223/trivia-with-zenity/Master/version.txt"
-LATEST_VERSION=$(curl -s "$LATEST_VERSION_URL")
+set -euo pipefail
 
+# Configuration
+readonly DATA_DIR="./Quiz-data"
+readonly DATA_FILE="$DATA_DIR/data.txt"
+readonly VERSION="2"
+readonly LATEST_VERSION_URL="https://raw.githubusercontent.com/uzairdeveloper223/trivia-with-zenity/Master/version.txt"
+readonly TOTAL_QUESTIONS=25
 
-# Welcome message
-zenity --info --text="🎉 Welcome to the Trivia Quiz Game! 🎉" --width=300 --height=100 --timeout=3
-zenity --info --text="The version of the Game is ${VERSION}" --width=300 --height=100
-# Debugging: print out the values
-echo "VERSION: $VERSION"
-echo "LATEST_VERSION: $LATEST_VERSION"
+# Colors for CLI mode
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly CYAN='\033[0;36m'
+readonly BOLD='\033[1m'
+readonly NC='\033[0m' # No Color
 
-# Check if VERSION and LATEST_VERSION are integers and not empty
-if [[ -z "$VERSION" || -z "$LATEST_VERSION" ]]; then
-    echo "Error: VERSION or LATEST_VERSION is not set."
-    exit 1
-fi
+# Global variables
+score=0
+current_question=0
+correct_answers=0
+wrong_answers=0
+MODE=""
 
-if  [ "$VERSION" -lt "$LATEST_VERSION" ]; then
-    if zenity --question --title="Update Available" --text="You are on version $VERSION. A newer version $LATEST_VERSION is available. Do you want to update?" --width=300 --height=100; then
-        zenity --info --text="Updating the quiz..." --width=300 --height=100 --timeout=3
-        rm quiz
-        curl -o quiz https://raw.githubusercontent.com/uzairdeveloper223/trivia-with-zenity/Master/quiz
-        chmod +x *
-        zenity --info --text="Update complete! Enter 'bash quiz' to start the game." --width=300 --height=100 --timeout=3
-        exit 0
+#=============================================================================
+# Utility Functions
+#=============================================================================
+
+print_color() {
+    local color="$1"
+    local message="$2"
+    echo -e "${color}${message}${NC}"
+}
+
+print_banner() {
+    clear
+    print_color "$CYAN" "╔════════════════════════════════════════════╗"
+    print_color "$CYAN" "║     🎯 TRIVIA QUIZ GAME v${VERSION}        ║"
+    print_color "$CYAN" "╚════════════════════════════════════════════╝"
+    echo
+}
+
+check_display() {
+    if [[ -n "${DISPLAY:-}" ]] && command -v zenity &> /dev/null; then
+        return 0
     else
-        zenity --warning --text="You chose not to update. You may not receive new questions." --width=300 --height=100 --timeout=3
+        return 1
     fi
-fi
-# Initialize or load data
-if [ ! -d "$DATA_DIR" ]; then
-    mkdir -p "$DATA_DIR"
-fi
+}
 
-if [ -f "$DATA_FILE" ]; then
-    source "$DATA_FILE"
-    if zenity --question --title="Quiz Game" --text="Would you like to continue your previous game?" --width=300 --height=100; then
-        zenity --info --text="Resuming your quiz..." --width=300 --height=100 --timeout=2
+detect_mode() {
+    if [[ "${1:-}" == "--cli" ]]; then
+        MODE="cli"
+    elif [[ "${1:-}" == "--gui" ]]; then
+        if check_display; then
+            MODE="gui"
+        else
+            print_color "$RED" "❌ GUI mode not available. Zenity not installed or no DISPLAY set."
+            print_color "$YELLOW" "Falling back to CLI mode..."
+            sleep 2
+            MODE="cli"
+        fi
     else
-        score=0
-        current_question=0
-        correct_answers=0
-        wrong_answers=0
-        > "$DATA_FILE"  # Clear the file
+        # Auto-detect mode
+        if check_display; then
+            MODE="gui"
+        else
+            MODE="cli"
+        fi
     fi
-else
+}
+
+install_zenity() {
+    if [[ "$MODE" == "gui" ]] && ! command -v zenity &> /dev/null; then
+        print_color "$YELLOW" "Zenity not installed. Installing..."
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update && sudo apt-get install zenity -y
+        elif command -v pkg &> /dev/null; then
+            pkg install zenity -y
+        else
+            print_color "$RED" "❌ Cannot install Zenity. Switching to CLI mode."
+            MODE="cli"
+        fi
+    fi
+}
+
+#=============================================================================
+# Update Functions
+#=============================================================================
+
+check_updates() {
+    local latest_version
+    
+    if ! latest_version=$(curl -s "$LATEST_VERSION_URL" 2>/dev/null); then
+        return 1
+    fi
+    
+    if [[ -z "$latest_version" ]] || [[ -z "$VERSION" ]]; then
+        return 1
+    fi
+    
+    if [[ "$VERSION" -lt "$latest_version" ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+perform_update() {
+    if [[ "$MODE" == "gui" ]]; then
+        zenity --info --text="🔄 Updating the quiz..." --width=300 --height=100 --timeout=2
+    else
+        print_color "$CYAN" "🔄 Updating the quiz..."
+    fi
+    
+    rm -f quiz
+    curl -o quiz "$LATEST_VERSION_URL" 2>/dev/null || {
+        [[ "$MODE" == "gui" ]] && zenity --error --text="❌ Update failed!" --width=300 --height=100 || print_color "$RED" "❌ Update failed!"
+        return 1
+    }
+    
+    chmod +x quiz
+    
+    if [[ "$MODE" == "gui" ]]; then
+        zenity --info --text="✅ Update complete! Restart to use new version." --width=300 --height=100 --timeout=3
+    else
+        print_color "$GREEN" "✅ Update complete! Run 'bash quiz' to start."
+    fi
+    
+    exit 0
+}
+
+prompt_update() {
+    local latest_version
+    latest_version=$(curl -s "$LATEST_VERSION_URL" 2>/dev/null)
+    
+    if [[ "$MODE" == "gui" ]]; then
+        if zenity --question --title="Update Available" \
+            --text="You are on version $VERSION. Version $latest_version is available.\n\nDo you want to update?" \
+            --width=350 --height=120; then
+            perform_update
+        else
+            zenity --warning --text="⚠️ You chose not to update.\nYou may not receive new questions." \
+                --width=300 --height=100 --timeout=3
+        fi
+    else
+        print_color "$YELLOW" "⚠️  Update Available!"
+        print_color "$CYAN" "Current version: $VERSION"
+        print_color "$CYAN" "Latest version: $latest_version"
+        echo
+        read -p "Do you want to update? (y/n): " choice
+        if [[ "$choice" =~ ^[Yy]$ ]]; then
+            perform_update
+        else
+            print_color "$YELLOW" "Continuing without update..."
+            sleep 1
+        fi
+    fi
+}
+
+#=============================================================================
+# Data Management
+#=============================================================================
+
+init_data() {
+    [[ ! -d "$DATA_DIR" ]] && mkdir -p "$DATA_DIR"
+    
+    if [[ -f "$DATA_FILE" ]]; then
+        source "$DATA_FILE"
+        
+        if [[ "$MODE" == "gui" ]]; then
+            if zenity --question --title="Resume Game?" \
+                --text="Previous game found!\n\nScore: $correct_answers/$current_question\n\nContinue?" \
+                --width=300 --height=150; then
+                zenity --info --text="📂 Resuming your quiz..." --width=300 --height=100 --timeout=2
+            else
+                reset_data
+            fi
+        else
+            print_color "$YELLOW" "📂 Previous game found!"
+            print_color "$CYAN" "Score: $correct_answers correct, $wrong_answers wrong"
+            print_color "$CYAN" "Progress: $current_question/$TOTAL_QUESTIONS"
+            echo
+            read -p "Continue previous game? (y/n): " choice
+            if [[ ! "$choice" =~ ^[Yy]$ ]]; then
+                reset_data
+            fi
+        fi
+    else
+        reset_data
+    fi
+}
+
+reset_data() {
     score=0
     current_question=0
     correct_answers=0
     wrong_answers=0
-fi
-
-# Function to save progress
-save_progress() {
-    echo "score=$score" > "$DATA_FILE"
-    echo "current_question=$current_question" >> "$DATA_FILE"
-    echo "correct_answers=$correct_answers" >> "$DATA_FILE"
-    echo "wrong_answers=$wrong_answers" >> "$DATA_FILE"
-    echo "progress saved"
+    > "$DATA_FILE"
 }
 
-# Define a function to ask a question
-ask_question() {
-    QUESTION="$1"
-    OPTION1="$2"
-    OPTION2="$3"
-    OPTION3="$4"
-    OPTION4="$5"
-    CORRECT_OPTION="$6"
+save_progress() {
+    cat > "$DATA_FILE" << EOF
+score=$score
+current_question=$current_question
+correct_answers=$correct_answers
+wrong_answers=$wrong_answers
+EOF
+}
 
-    ANSWER=$(zenity --list --title="Quiz Game" --text="$QUESTION" --radiolist \
+#=============================================================================
+# Question Functions
+#=============================================================================
+
+ask_question_gui() {
+    local question="$1"
+    local opt1="$2"
+    local opt2="$3"
+    local opt3="$4"
+    local opt4="$5"
+    local correct="$6"
+    
+    local answer
+    answer=$(zenity --list --title="Question $((current_question + 1))/$TOTAL_QUESTIONS" \
+        --text="$question" --radiolist \
         --column="Select" --column="Options" \
-        FALSE "$OPTION1" \
-        FALSE "$OPTION2" \
-        FALSE "$OPTION3" \
-        FALSE "$OPTION4" \
-        --width=400 --height=300)
-
-    if [ "$ANSWER" == "$CORRECT_OPTION" ]; then
-        zenity --info --text="Correct! 😃" --timeout=2 --width=200 --height=100
+        FALSE "$opt1" \
+        FALSE "$opt2" \
+        FALSE "$opt3" \
+        FALSE "$opt4" \
+        --width=500 --height=350 2>/dev/null) || {
+        if zenity --question --text="Exit quiz and save progress?" --width=300 --height=100; then
+            save_progress
+            zenity --info --text="💾 Progress saved!" --width=300 --height=100 --timeout=2
+            exit 0
+        else
+            ask_question_gui "$question" "$opt1" "$opt2" "$opt3" "$opt4" "$correct"
+            return
+        fi
+    }
+    
+    if [[ "$answer" == "$correct" ]]; then
+        zenity --info --text="✅ Correct! Well done! 😃" --timeout=2 --width=250 --height=120
         ((correct_answers++))
     else
-        zenity --error --text="Wrong! The correct answer was: $CORRECT_OPTION" --timeout=2 --width=200 --height=100
+        zenity --error --text="❌ Wrong!\n\nCorrect answer: $correct" --timeout=3 --width=250 --height=120
         ((wrong_answers++))
     fi
+    
     ((current_question++))
 }
 
-# Welcome message
-zenity --info --text="🎉 Welcome to the Trivia Quiz Game! 🎉" --width=300 --height=100 --timeout=3
-zenity --info --text="Your progress will be saved after every question , press CTRL+C to exit without data loss , press 'ok' to continue" --width=300 --height=100
-# Quiz questions
-if [ "$current_question" -eq 0 ]; then
-    ask_question "Which planet is known as the Red Planet?" "Earth" "Mars" "Jupiter" "Venus" "Mars"
-fi
-save_progress
-if [ "$current_question" -eq 1 ]; then
-    ask_question "What is the capital of France?" "Berlin" "London" "Madrid" "Paris" "Paris"
-fi
-save_progress
-if [ "$current_question" -eq 2 ]; then
-    ask_question "Which element has the chemical symbol 'O'?" "Oxygen" "Gold" "Osmium" "Oganesson" "Oxygen"
-fi
-save_progress
-if [ "$current_question" -eq 3 ]; then
-    ask_question "Who wrote the play 'Romeo and Juliet'?" "Mark Twain" "William Shakespeare" "Charles Dickens" "Jane Austen" "William Shakespeare"
-fi
-save_progress
-if [ "$current_question" -eq 4 ]; then
-    ask_question "Which animal is known as the King of the Jungle?" "Elephant" "Tiger" "Lion" "Bear" "Lion"
-fi
-save_progress
-if [ "$current_question" -eq 5 ]; then
-    ask_question "What is the largest ocean on Earth?" "Atlantic" "Indian" "Arctic" "Pacific" "Pacific"
-fi
-save_progress
-if [ "$current_question" -eq 6 ]; then
-    ask_question "In which year did the Titanic sink?" "1912" "1913" "1914" "1915" "1912"
-fi
-save_progress
-if [ "$current_question" -eq 7 ]; then
-    ask_question "Which planet is closest to the Sun?" "Mercury" "Venus" "Earth" "Mars" "Mercury"
-fi
-save_progress
-if [ "$current_question" -eq 8 ]; then
-    ask_question "What is the largest mammal in the world?" "Elephant" "Blue Whale" "Giraffe" "Shark" "Blue Whale"
-fi
-save_progress
-if [ "$current_question" -eq 9 ]; then
-    ask_question "Which country is home to the kangaroo?" "South Africa" "India" "Australia" "Brazil" "Australia"
-fi
-save_progress
-if [ "$current_question" -eq 10 ]; then
-    ask_question "Which is the smallest country in the world by area?" "Monaco" "Vatican City" "San Marino" "Liechtenstein" "Vatican City"
-fi
-save_progress
-if [ "$current_question" -eq 11 ]; then
-    ask_question "Which planet is known as the Earth's twin?" "Mars" "Venus" "Jupiter" "Saturn" "Venus"
-fi
-save_progress
-if [ "$current_question" -eq 12 ]; then
-    ask_question "What is the chemical symbol for gold?" "Ag" "Au" "Gd" "Pb" "Au"
-fi
-save_progress
-if [ "$current_question" -eq 13 ]; then
-    ask_question "Who painted the Mona Lisa?" "Vincent van Gogh" "Pablo Picasso" "Leonardo da Vinci" "Claude Monet" "Leonardo da Vinci"
-fi
-save_progress
-if [ "$current_question" -eq 14 ]; then
-    ask_question "Which country won the FIFA World Cup in 2018?" "Germany" "Brazil" "Argentina" "France" "France"
-fi
-save_progress
-if [ "$current_question" -eq 15 ]; then
-    ask_question "What is the hardest natural substance on Earth?" "Iron" "Diamond" "Gold" "Titanium" "Diamond"
-fi
-save_progress
-if [ "$current_question" -eq 16 ]; then
-    ask_question "In which year did World War II end?" "1942" "1943" "1945" "1946" "1945"
-fi
-save_progress
-if [ "$current_question" -eq 17 ]; then
-    ask_question "What is the most abundant gas in Earth's atmosphere?" "Oxygen" "Nitrogen" "Carbon Dioxide" "Hydrogen" "Nitrogen"
-fi
-save_progress
-if [ "$current_question" -eq 18 ]; then
-    ask_question "Which element is known as the 'King of Chemicals'?" "Hydrochloric Acid" "Sulfuric Acid" "Nitric Acid" "Acetic Acid" "Sulfuric Acid"
-fi
-save_progress
-if [ "$current_question" -eq 19 ]; then
-    ask_question "What is the capital city of Australia?" "Sydney" "Melbourne" "Canberra" "Brisbane" "Canberra"
-fi
-save_progress
-if [ "$current_question" -eq 20 ]; then
-    ask_question "Which is the largest landlocked country in the world?" "Kazakhstan" "Mongolia" "Bolivia" "Chad" "Kazakhstan"
-fi
-save_progress
-if [ "$current_question" -eq 21 ]; then
-    ask_question "What is the powerhouse of the cell?" "Nucleus" "Mitochondria" "Ribosome" "Chloroplast" "Mitochondria"
-fi
-save_progress
-if [ "$current_question" -eq 22 ]; then
-    ask_question "Which language has the most native speakers in the world?" "English" "Mandarin Chinese" "Spanish" "Hindi" "Mandarin Chinese"
-fi
-save_progress
-if [ "$current_question" -eq 23 ]; then
-    ask_question "Who discovered penicillin?" "Marie Curie" "Alexander Fleming" "Louis Pasteur" "Robert Koch" "Alexander Fleming"
-fi
-save_progress
-if [ "$current_question" -eq 24 ]; then
-    ask_question "Which planet is known as the Morning Star or Evening Star?" "Mercury" "Venus" "Mars" "Saturn" "Venus"
-fi
-save_progress
-if [ "$current_question" -eq 25 ]; then
-    ask_question "Which river is the longest in the world?" "Amazon" "Nile" "Yangtze" "Mississippi" "Nile"
-fi
-save_progress
-# Option to exit and save progress
-if zenity --question --title="Quiz Game" --text="Do you want to exit the quiz and save your progress?" --width=300 --height=100; then
-    save_progress
-    zenity --info --text="Your progress has been saved. See you next time!" --width=300 --height=100 --timeout=2
-    exit 0
-fi
+ask_question_cli() {
+    local question="$1"
+    local opt1="$2"
+    local opt2="$3"
+    local opt3="$4"
+    local opt4="$5"
+    local correct="$6"
+    
+    clear
+    print_banner
+    print_color "$BOLD" "Question $((current_question + 1))/$TOTAL_QUESTIONS"
+    print_color "$CYAN" "Score: $correct_answers correct | $wrong_answers wrong"
+    echo
+    print_color "$YELLOW" "$question"
+    echo
+    echo "1) $opt1"
+    echo "2) $opt2"
+    echo "3) $opt3"
+    echo "4) $opt4"
+    echo
+    
+    local answer
+    while true; do
+        read -p "Your answer (1-4, or 'q' to quit): " answer
+        
+        if [[ "$answer" == "q" ]]; then
+            save_progress
+            print_color "$GREEN" "💾 Progress saved! Goodbye!"
+            exit 0
+        fi
+        
+        if [[ "$answer" =~ ^[1-4]$ ]]; then
+            break
+        else
+            print_color "$RED" "Invalid input. Please enter 1-4 or 'q' to quit."
+        fi
+    done
+    
+    local selected_option
+    case $answer in
+        1) selected_option="$opt1" ;;
+        2) selected_option="$opt2" ;;
+        3) selected_option="$opt3" ;;
+        4) selected_option="$opt4" ;;
+    esac
+    
+    if [[ "$selected_option" == "$correct" ]]; then
+        print_color "$GREEN" "\n✅ Correct! Well done! 😃"
+        ((correct_answers++))
+    else
+        print_color "$RED" "\n❌ Wrong!"
+        print_color "$YELLOW" "The correct answer was: $correct"
+        ((wrong_answers++))
+    fi
+    
+    ((current_question++))
+    sleep 2
+}
 
-# Final score
-zenity --info --text="Your final score is: $correct_answers correct and $wrong_answers wrong out of $current_question questions." --width=300 --height=100 --timeout=5
+ask_question() {
+    if [[ "$MODE" == "gui" ]]; then
+        ask_question_gui "$@"
+    else
+        ask_question_cli "$@"
+    fi
+}
 
-# End message
-if [ "$correct_answers" -eq 10 ]; then
-    zenity --info --text="🏆 Perfect Score! You're a trivia master!" --width=300 --height=100 --timeout=3
-elif [ "$correct_answers" -ge 7 ]; then
-    zenity --info --text="👏 Great Job! You did well!" --width=300 --height=100 --timeout=3
-elif [ "$correct_answers" -ge 4 ]; then
-    zenity --info --text="😊 Not bad! Keep practicing!" --width=300 --height=100 --timeout=3
-else
-    zenity --info --text="😅 Better luck next time! Keep practicing!" --width=300 --height=100 --timeout=3
-fi
+#=============================================================================
+# Quiz Questions Database
+#=============================================================================
 
-# Clean up and reset data
-> "$DATA_FILE"
+run_quiz() {
+    local questions=(
+        "Which planet is known as the Red Planet?|Earth|Mars|Jupiter|Venus|Mars"
+        "What is the capital of France?|Berlin|London|Madrid|Paris|Paris"
+        "Who painted the Mona Lisa?|Van Gogh|Da Vinci|Picasso|Michelangelo|Da Vinci"
+        "What is the largest ocean on Earth?|Atlantic|Indian|Arctic|Pacific|Pacific"
+        "How many continents are there?|5|6|7|8|7"
+        "What is the smallest country in the world?|Monaco|Vatican City|Malta|San Marino|Vatican City"
+        "What is the chemical symbol for gold?|Go|Gd|Au|Ag|Au"
+        "Who wrote 'Romeo and Juliet'?|Dickens|Shakespeare|Hemingway|Austen|Shakespeare"
+        "What is the speed of light?|299,792 km/s|300,000 km/s|250,000 km/s|350,000 km/s|299,792 km/s"
+        "Which gas do plants absorb?|Oxygen|Nitrogen|Carbon Dioxide|Hydrogen|Carbon Dioxide"
+        "What is the capital of Japan?|Seoul|Beijing|Bangkok|Tokyo|Tokyo"
+        "How many bones are in the human body?|198|206|215|220|206"
+        "What is the largest mammal?|Elephant|Blue Whale|Giraffe|Polar Bear|Blue Whale"
+        "Who invented the telephone?|Edison|Tesla|Bell|Marconi|Bell"
+        "What is H2O commonly known as?|Hydrogen|Oxygen|Water|Peroxide|Water"
+        "Which programming language is known for web development?|Python|JavaScript|C++|Rust|JavaScript"
+        "What year did World War II end?|1943|1944|1945|1946|1945"
+        "What is the largest desert?|Sahara|Arabian|Gobi|Antarctica|Antarctica"
+        "Who developed the theory of relativity?|Newton|Einstein|Galileo|Hawking|Einstein"
+        "What is the hardest natural substance?|Gold|Iron|Diamond|Platinum|Diamond"
+        "How many hearts does an octopus have?|1|2|3|4|3"
+        "What is the currency of Japan?|Yuan|Won|Yen|Ringgit|Yen"
+        "Which planet has the most moons?|Jupiter|Saturn|Uranus|Neptune|Saturn"
+        "What is the boiling point of water?|90°C|95°C|100°C|105°C|100°C"
+        "Which river is the longest in the world?|Amazon|Nile|Yangtze|Mississippi|Nile"
+    )
+    
+    for ((i=current_question; i<TOTAL_QUESTIONS; i++)); do
+        IFS='|' read -r question opt1 opt2 opt3 opt4 correct <<< "${questions[$i]}"
+        ask_question "$question" "$opt1" "$opt2" "$opt3" "$opt4" "$correct"
+        save_progress
+    done
+}
+
+#=============================================================================
+# Results Display
+#=============================================================================
+
+show_results() {
+    local percentage=$((correct_answers * 100 / TOTAL_QUESTIONS))
+    
+    if [[ "$MODE" == "gui" ]]; then
+        local message="Quiz Complete!\n\n"
+        message+="✅ Correct: $correct_answers\n"
+        message+="❌ Wrong: $wrong_answers\n"
+        message+="📊 Score: $percentage%\n\n"
+        
+        if [[ $correct_answers -eq $TOTAL_QUESTIONS ]]; then
+            message+="🏆 Perfect Score! You're a trivia master!"
+        elif [[ $correct_answers -ge 20 ]]; then
+            message+="🌟 Excellent! Outstanding performance!"
+        elif [[ $correct_answers -ge 15 ]]; then
+            message+="👏 Great Job! You did well!"
+        elif [[ $correct_answers -ge 10 ]]; then
+            message+="😊 Good effort! Keep practicing!"
+        else
+            message+="📚 Keep learning! Practice makes perfect!"
+        fi
+        
+        zenity --info --text="$message" --width=350 --height=250 --timeout=10
+    else
+        clear
+        print_banner
+        print_color "$BOLD" "🎊 QUIZ COMPLETE! 🎊"
+        echo
+        print_color "$GREEN" "✅ Correct Answers: $correct_answers"
+        print_color "$RED" "❌ Wrong Answers: $wrong_answers"
+        print_color "$CYAN" "📊 Total Questions: $TOTAL_QUESTIONS"
+        print_color "$YELLOW" "🎯 Score: $percentage%"
+        echo
+        
+        if [[ $correct_answers -eq $TOTAL_QUESTIONS ]]; then
+            print_color "$GREEN" "🏆 Perfect Score! You're a trivia master!"
+        elif [[ $correct_answers -ge 20 ]]; then
+            print_color "$GREEN" "🌟 Excellent! Outstanding performance!"
+        elif [[ $correct_answers -ge 15 ]]; then
+            print_color "$CYAN" "👏 Great Job! You did well!"
+        elif [[ $correct_answers -ge 10 ]]; then
+            print_color "$YELLOW" "😊 Good effort! Keep practicing!"
+        else
+            print_color "$YELLOW" "📚 Keep learning! Practice makes perfect!"
+        fi
+        echo
+        read -p "Press Enter to exit..."
+    fi
+    
+    reset_data
+}
+
+#=============================================================================
+# Main Function
+#=============================================================================
+
+show_welcome() {
+    if [[ "$MODE" == "gui" ]]; then
+        zenity --info --text="🎉 Welcome to Trivia Quiz Game!\n\nVersion: $VERSION\nMode: GUI" \
+            --width=300 --height=150 --timeout=3
+        zenity --info --text="💾 Progress auto-saves after each question.\n\nPress Cancel to exit anytime." \
+            --width=350 --height=120
+    else
+        print_banner
+        print_color "$GREEN" "Mode: CLI"
+        print_color "$CYAN" "💾 Progress auto-saves after each question."
+        print_color "$CYAN" "Press 'q' during questions to exit safely."
+        echo
+        read -p "Press Enter to start..."
+    fi
+}
+
+main() {
+    detect_mode "$@"
+    install_zenity
+    
+    if check_updates; then
+        prompt_update
+    fi
+    
+    init_data
+    show_welcome
+    run_quiz
+    show_results
+}
+
+# Run the script
+main "$@"
